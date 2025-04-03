@@ -1,14 +1,10 @@
+mod utils;
+
 use clap::Parser;
-
-#[derive(Parser, Debug)]
-#[command(name = "pad", about = "A notepad for quick thoughts")]
-struct Cli {
-    #[arg(short, long)]
-    category: Option<String>, // category
-
-    text: String // text that is being saved
-}
+use crate::utils::argparse::Cli;
 
 fn main() {
     let args = Cli::parse();
+    println!("Category: {:?}", args.category);
+    println!("Text: {}", args.text);
 }
