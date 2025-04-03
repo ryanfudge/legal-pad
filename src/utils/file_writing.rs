@@ -4,15 +4,20 @@ I will write to the same file each time, similar to how command history works bu
 
 use std::fs;
 use std::io::Write;
+use chrono::Local;
 
-pub fn write_to_file(file_name: &str, content: &str) -> std::io::Result<()> {
+const NOTES_FILE: &str = "notes.txt";
+
+pub fn write_to_file(category: Option<&str>, content: &str) -> std::io::Result<()> {
     // Open the file and append new content to it
     let mut file = fs::OpenOptions::new()
+        .create(true)
         .append(true)
-        .open(file_name)?;
+        .open(NOTES_FILE)?;
 
-    // Write content
-    file.write_all(content.as_bytes())?;
-    file.write_all(b"\n")?; // Add a newline after each entry
+    // Write content with timestamp and category
+    let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S");
+    let category = category.unwrap_or("general");
+    writeln!(file, "[{}] [{}] {}", timestamp, category, content)?;
     Ok(())
 }

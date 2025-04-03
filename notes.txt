@@ -1,0 +1,4 @@
+[2025-04-03 20:08:04] [work] first work note
+[2025-04-03 20:08:04] [personal] first personal note
+[2025-04-03 20:08:04] [general] uncategorized note
+[2025-04-03 20:18:56] [test] testing the fixed implementation

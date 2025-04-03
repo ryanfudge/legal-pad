@@ -10,6 +10,5 @@ fn main() {
     println!("Category: {:?}", args.category);
     println!("Text: {}", args.text);
 
-    const FILE_NAME : &str = "test.txt";
-    write_to_file(FILE_NAME, &args.text).expect("Failed to write to file");
+    write_to_file(args.category.as_deref(), &args.text).expect("Failed to write to file");
 }
