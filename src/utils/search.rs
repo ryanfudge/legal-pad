@@ -1,0 +1,3 @@
+/*
+I will search for notes via the category or by text search
+*/
