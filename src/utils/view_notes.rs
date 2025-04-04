@@ -1,3 +1,1 @@
-/*
-view notes in a semi-pleasant format
-*/
+// view notes in a semi-pleasant format
