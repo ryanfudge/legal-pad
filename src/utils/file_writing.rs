@@ -16,8 +16,14 @@ pub fn write_to_file(category: Option<&str>, content: &str) -> std::io::Result<(
         .open(NOTES_FILE)?;
 
     // Write content with timestamp and category
-    let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S");
+    let timestamp = Local::now().format("%Y-%m-%d");
     let category = category.unwrap_or("general");
-    writeln!(file, "[{}] [{}] {}", timestamp, category, content)?;
+    writeln!(
+        file, 
+        "{:<14} {:<10} {}",
+        format!("[{}]", timestamp), 
+        format!("[{}]", category), 
+        content
+    )?;
     Ok(())
 }
