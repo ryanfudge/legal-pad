@@ -1,14 +1,42 @@
 mod utils;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use utils::file_writing::write_to_file;
-use crate::utils::argparse::Cli;
+use utils::viewer::view_notes;
+
+#[derive(Parser)]
+#[command(name = "pad", about = "A notepad for quick thoughts")]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Add a new note
+    Add {
+        /// Category for the note
+        #[arg(short, long)]
+        category: Option<String>,
+
+        /// The text content to be saved
+        text: String,
+    },
+    /// View all notes
+    View,
+}
 
 fn main() {
-    let args = Cli::parse();
+    let cli = Cli::parse();
 
-    println!("Category: {:?}", args.category);
-    println!("Text: {}", args.text);
-
-    write_to_file(args.category.as_deref(), &args.text).expect("Failed to write to file");
+    match cli.command {
+        Commands::Add { category, text } => {
+            println!("Category: {:?}", category);
+            println!("Text: {}", text);
+            write_to_file(category.as_deref(), &text).expect("Failed to write to file");
+        }
+        Commands::View => {
+            view_notes().expect("Failed to view notes");
+        }
+    }
 }
