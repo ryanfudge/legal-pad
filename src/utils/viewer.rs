@@ -26,7 +26,7 @@ pub fn view_notes() -> io::Result<()> {
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
 
     // Read notes
-    let notes = read_notes()?;
+    let mut notes = read_notes()?;
     let mut list_state = ListState::default();
     if !notes.is_empty() {
         list_state.select(Some(0));
@@ -90,10 +90,12 @@ pub fn view_notes() -> io::Result<()> {
             // Help text
             let help = Paragraph::new(Text::from(vec![
                 Line::from(vec![
-                    Span::styled("q", Style::default().fg(Color::Yellow)),
-                    Span::raw(" to quit, "),
                     Span::styled("↑↓", Style::default().fg(Color::Yellow)),
-                    Span::raw(" to navigate"),
+                    Span::raw(" to navigate, "),
+                    Span::styled("d", Style::default().fg(Color::Yellow)),
+                    Span::raw(" to delete, "),
+                    Span::styled("q", Style::default().fg(Color::Yellow)),
+                    Span::raw(" to quit"),
                 ]),
             ]))
             .block(Block::default().borders(Borders::ALL));
@@ -117,6 +119,17 @@ pub fn view_notes() -> io::Result<()> {
                         }
                     }
                 }
+                KeyCode::Char('d') => {
+                    if let Some(selected) = list_state.selected() {
+                        delete_note(selected)?;
+                        notes = read_notes()?;
+                        if notes.is_empty() {
+                            list_state.select(None);
+                        } else if selected >= notes.len() {
+                            list_state.select(Some(notes.len() - 1));
+                        }
+                    }
+                }
                 _ => {}
             }
         }
@@ -134,4 +147,13 @@ fn read_notes() -> io::Result<Vec<String>> {
     }
     let content = fs::read_to_string(NOTES_FILE)?;
     Ok(content.lines().map(String::from).collect())
+}
+
+fn delete_note(index: usize) -> io::Result<()> {
+    let mut notes = read_notes()?;
+    if index < notes.len() {
+        notes.remove(index);
+        fs::write(NOTES_FILE, notes.join("\n"))?;
+    }
+    Ok(())
 } 
