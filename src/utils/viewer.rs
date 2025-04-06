@@ -76,10 +76,10 @@ pub fn view_notes() -> io::Result<()> {
             let items: Vec<ListItem> = filtered_notes
                 .iter()
                 .map(|note| {
-                    // Split the note into parts
-                    let parts: Vec<&str> = note.splitn(3, ']').collect();
-                    let timestamp = parts.get(0).map(|s| s.trim_start_matches('[')).unwrap_or("");
-                    let category = parts.get(1).map(|s| s.trim_start_matches('[')).unwrap_or("");
+                    // Split the note into parts, handling the extra spaces
+                    let parts: Vec<&str> = note.split(']').collect();
+                    let timestamp = parts.get(0).map(|s| s.trim_start_matches('[').trim()).unwrap_or("");
+                    let category = parts.get(1).map(|s| s.trim_start_matches('[').trim()).unwrap_or("");
                     let content = parts.get(2).map(|s| s.trim()).unwrap_or("");
 
                     let timestamp = Span::styled(
@@ -87,7 +87,7 @@ pub fn view_notes() -> io::Result<()> {
                         Style::default().fg(Color::Cyan),
                     );
                     let category = Span::styled(
-                        format!("[{}]", category),
+                        format!("{}]", category),
                         Style::default().fg(Color::Green),
                     );
                     let content = Span::raw(content);
@@ -203,8 +203,8 @@ fn update_filtered_notes(notes: &[String], search_term: &str, filtered_notes: &m
         *filtered_notes = notes
             .iter()
             .filter(|note| {
-                let parts: Vec<&str> = note.splitn(3, ']').collect();
-                let category = parts.get(1).map(|s| s.trim_start_matches('[')).unwrap_or("");
+                let parts: Vec<&str> = note.split(']').collect();
+                let category = parts.get(1).map(|s| s.trim_start_matches('[').trim()).unwrap_or("");
                 let content = parts.get(2).map(|s| s.trim()).unwrap_or("");
                 category.to_lowercase().contains(&search_term.to_lowercase())
                     || content.to_lowercase().contains(&search_term.to_lowercase())
