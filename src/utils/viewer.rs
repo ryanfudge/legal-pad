@@ -32,6 +32,11 @@ pub fn view_notes() -> io::Result<()> {
         list_state.select(Some(0));
     }
 
+    // Search state
+    let mut search_mode = false;
+    let mut search_term = String::new();
+    let mut filtered_notes = notes.clone();
+
     // Main event loop
     loop {
         terminal.draw(|f| {
@@ -39,6 +44,7 @@ pub fn view_notes() -> io::Result<()> {
                 .direction(Direction::Vertical)
                 .margin(1)
                 .constraints([
+                    Constraint::Length(3),
                     Constraint::Length(3),
                     Constraint::Min(1),
                     Constraint::Length(3),
@@ -52,8 +58,22 @@ pub fn view_notes() -> io::Result<()> {
                 .style(Style::default().fg(Color::Yellow));
             f.render_widget(header, chunks[0]);
 
+            // Search bar
+            let search_style = if search_mode {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            };
+            let search_bar = Paragraph::new(Text::from(format!(
+                "Search: {}",
+                if search_mode { &search_term } else { "Press '/' to search" }
+            )))
+            .block(Block::default().borders(Borders::ALL))
+            .style(search_style);
+            f.render_widget(search_bar, chunks[1]);
+
             // Notes list
-            let items: Vec<ListItem> = notes
+            let items: Vec<ListItem> = filtered_notes
                 .iter()
                 .map(|note| {
                     // Split the note into parts
@@ -85,7 +105,7 @@ pub fn view_notes() -> io::Result<()> {
                 .block(Block::default().borders(Borders::ALL))
                 .highlight_style(Style::default().bg(Color::DarkGray))
                 .highlight_symbol(">> ");
-            f.render_stateful_widget(list, chunks[1], &mut list_state);
+            f.render_stateful_widget(list, chunks[2], &mut list_state);
 
             // Help text
             let help = Paragraph::new(Text::from(vec![
@@ -94,17 +114,50 @@ pub fn view_notes() -> io::Result<()> {
                     Span::raw(" to navigate, "),
                     Span::styled("d", Style::default().fg(Color::Yellow)),
                     Span::raw(" to delete, "),
+                    Span::styled("/", Style::default().fg(Color::Yellow)),
+                    Span::raw(" to search, "),
                     Span::styled("q", Style::default().fg(Color::Yellow)),
                     Span::raw(" to quit"),
                 ]),
             ]))
             .block(Block::default().borders(Borders::ALL));
-            f.render_widget(help, chunks[2]);
+            f.render_widget(help, chunks[3]);
         })?;
 
         if let Event::Key(key) = event::read()? {
             match key.code {
                 KeyCode::Char('q') => break,
+                KeyCode::Char('/') => {
+                    search_mode = true;
+                    search_term.clear();
+                    filtered_notes = notes.clone();
+                }
+                KeyCode::Esc => {
+                    search_mode = false;
+                    search_term.clear();
+                    filtered_notes = notes.clone();
+                    if !filtered_notes.is_empty() {
+                        list_state.select(Some(0));
+                    }
+                }
+                KeyCode::Backspace => {
+                    if search_mode {
+                        search_term.pop();
+                        update_filtered_notes(&notes, &search_term, &mut filtered_notes);
+                        if !filtered_notes.is_empty() {
+                            list_state.select(Some(0));
+                        }
+                    }
+                }
+                KeyCode::Char(c) => {
+                    if search_mode {
+                        search_term.push(c);
+                        update_filtered_notes(&notes, &search_term, &mut filtered_notes);
+                        if !filtered_notes.is_empty() {
+                            list_state.select(Some(0));
+                        }
+                    }
+                }
                 KeyCode::Up => {
                     if let Some(selected) = list_state.selected() {
                         if selected > 0 {
@@ -114,19 +167,22 @@ pub fn view_notes() -> io::Result<()> {
                 }
                 KeyCode::Down => {
                     if let Some(selected) = list_state.selected() {
-                        if selected < notes.len() - 1 {
+                        if selected < filtered_notes.len() - 1 {
                             list_state.select(Some(selected + 1));
                         }
                     }
                 }
                 KeyCode::Char('d') => {
                     if let Some(selected) = list_state.selected() {
-                        delete_note(selected)?;
-                        notes = read_notes()?;
-                        if notes.is_empty() {
-                            list_state.select(None);
-                        } else if selected >= notes.len() {
-                            list_state.select(Some(notes.len() - 1));
+                        if let Some(original_index) = notes.iter().position(|n| n == &filtered_notes[selected]) {
+                            delete_note(original_index)?;
+                            notes = read_notes()?;
+                            update_filtered_notes(&notes, &search_term, &mut filtered_notes);
+                            if filtered_notes.is_empty() {
+                                list_state.select(None);
+                            } else if selected >= filtered_notes.len() {
+                                list_state.select(Some(filtered_notes.len() - 1));
+                            }
                         }
                     }
                 }
@@ -139,6 +195,24 @@ pub fn view_notes() -> io::Result<()> {
     disable_raw_mode()?;
     stdout().execute(LeaveAlternateScreen)?;
     Ok(())
+}
+
+fn update_filtered_notes(notes: &[String], search_term: &str, filtered_notes: &mut Vec<String>) {
+    if search_term.is_empty() {
+        *filtered_notes = notes.to_vec();
+    } else {
+        *filtered_notes = notes
+            .iter()
+            .filter(|note| {
+                let parts: Vec<&str> = note.splitn(3, ']').collect();
+                let category = parts.get(1).map(|s| s.trim_start_matches('[')).unwrap_or("");
+                let content = parts.get(2).map(|s| s.trim()).unwrap_or("");
+                category.to_lowercase().contains(&search_term.to_lowercase())
+                    || content.to_lowercase().contains(&search_term.to_lowercase())
+            })
+            .cloned()
+            .collect();
+    }
 }
 
 fn read_notes() -> io::Result<Vec<String>> {
