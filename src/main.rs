@@ -15,9 +15,21 @@ struct Cli {
 enum Commands {
     /// Add a new note
     Add {
-        /// Category for the note
-        #[arg(short, long)]
-        category: Option<String>,
+        /// Mark as something to read
+        #[arg(short = 'r', long = "read")]
+        read: bool,
+
+        /// Mark as something to watch
+        #[arg(short = 'w', long = "watch")]
+        watch: bool,
+
+        /// Mark as something to listen to
+        #[arg(short = 'l', long = "listen")]
+        listen: bool,
+
+        /// Mark as an idea
+        #[arg(short = 'i', long = "idea")]
+        idea: bool,
 
         /// The text content to be saved
         text: String,
@@ -30,10 +42,19 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Add { category, text } => {
-            println!("Category: {:?}", category);
-            println!("Text: {}", text);
-            write_to_file(category.as_deref(), &text).expect("Failed to write to file");
+        Commands::Add { read, watch, listen, idea, text } => {
+            let category = if read {
+                "read"
+            } else if watch {
+                "watch"
+            } else if listen {
+                "listen"
+            } else if idea {
+                "idea"
+            } else {
+                "general"
+            };
+            write_to_file(Some(category), &text).expect("Failed to write to file");
         }
         Commands::View => {
             view_notes().expect("Failed to view notes");
