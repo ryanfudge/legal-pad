@@ -8,7 +8,7 @@ This project was inspired by Andrej Karpathy's "append-and-review" note structur
 note-taking framework, I realized that I had several different notetaking mediums (Notion, Google Keep, Apple Notes,
 etc.), causing my notes to be spread across a range of platforms. Because of this, I rarely ever went back to look at 
 these notes; this is why I need a consolidated platform. Becuase I've been utilizing the command line so often lately, I 
-decided to make a CLI app.  
+decided to make a CLI app written in Rust for performance.  
 
 ## Features
 
