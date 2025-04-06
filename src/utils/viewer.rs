@@ -156,6 +156,19 @@ pub fn view_notes() -> io::Result<()> {
                         if !filtered_notes.is_empty() {
                             list_state.select(Some(0));
                         }
+                    } else if c == 'd' {
+                        if let Some(selected) = list_state.selected() {
+                            if let Some(original_index) = notes.iter().position(|n| n == &filtered_notes[selected]) {
+                                delete_note(original_index)?;
+                                notes = read_notes()?;
+                                update_filtered_notes(&notes, &search_term, &mut filtered_notes);
+                                if filtered_notes.is_empty() {
+                                    list_state.select(None);
+                                } else if selected >= filtered_notes.len() {
+                                    list_state.select(Some(filtered_notes.len() - 1));
+                                }
+                            }
+                        }
                     }
                 }
                 KeyCode::Up => {
@@ -169,20 +182,6 @@ pub fn view_notes() -> io::Result<()> {
                     if let Some(selected) = list_state.selected() {
                         if selected < filtered_notes.len() - 1 {
                             list_state.select(Some(selected + 1));
-                        }
-                    }
-                }
-                KeyCode::Char('d') => {
-                    if let Some(selected) = list_state.selected() {
-                        if let Some(original_index) = notes.iter().position(|n| n == &filtered_notes[selected]) {
-                            delete_note(original_index)?;
-                            notes = read_notes()?;
-                            update_filtered_notes(&notes, &search_term, &mut filtered_notes);
-                            if filtered_notes.is_empty() {
-                                list_state.select(None);
-                            } else if selected >= filtered_notes.len() {
-                                list_state.select(Some(filtered_notes.len() - 1));
-                            }
                         }
                     }
                 }
