@@ -14,10 +14,18 @@ use ratatui::{
 use std::{
     fs,
     io::{self, stdout},
-    path::Path,
+    path::PathBuf,
 };
+use dirs::home_dir;
 
 const NOTES_FILE: &str = "notes.txt";
+
+fn get_notes_path() -> PathBuf {
+    let mut path = home_dir().expect("Could not find home directory");
+    path.push("notes");
+    path.push(NOTES_FILE);
+    path
+}
 
 pub fn view_notes() -> io::Result<()> {
     // Setup terminal
@@ -215,18 +223,22 @@ fn update_filtered_notes(notes: &[String], search_term: &str, filtered_notes: &m
 }
 
 fn read_notes() -> io::Result<Vec<String>> {
-    if !Path::new(NOTES_FILE).exists() {
+    let notes_path = get_notes_path();
+    if !notes_path.exists() {
         return Ok(Vec::new());
     }
-    let content = fs::read_to_string(NOTES_FILE)?;
-    Ok(content.lines().map(String::from).collect())
+    let content = fs::read_to_string(notes_path)?;
+    let mut notes: Vec<String> = content.lines().map(String::from).collect();
+    notes.reverse();
+    Ok(notes)
 }
 
 fn delete_note(index: usize) -> io::Result<()> {
     let mut notes = read_notes()?;
     if index < notes.len() {
         notes.remove(index);
-        fs::write(NOTES_FILE, notes.join("\n"))?;
+        let notes_path = get_notes_path();
+        fs::write(notes_path, notes.join("\n"))?;
     }
     Ok(())
 } 
