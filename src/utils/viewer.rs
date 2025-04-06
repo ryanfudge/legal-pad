@@ -87,7 +87,7 @@ pub fn view_notes() -> io::Result<()> {
                         Style::default().fg(Color::Cyan),
                     );
                     let category = Span::styled(
-                        format!("{}]", category),
+                        format!("{}]{}", category, " ".repeat(14 - category.len() - 2)), // Pad after the bracket
                         Style::default().fg(Color::Green),
                     );
                     let content = Span::raw(content);
