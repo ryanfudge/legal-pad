@@ -17,6 +17,7 @@ use std::{
     path::PathBuf,
 };
 use dirs::home_dir;
+use crate::utils::semantic_search::SemanticSearch;
 
 const NOTES_FILE: &str = "notes.txt";
 
@@ -40,10 +41,16 @@ pub fn view_notes() -> io::Result<()> {
         list_state.select(Some(0));
     }
 
+    // Initialize semantic search
+    let semantic_search = SemanticSearch::new().map_err(|e| {
+        io::Error::new(io::ErrorKind::Other, format!("Failed to initialize semantic search: {}", e))
+    })?;
+
     // Search state
     let mut search_mode = false;
     let mut search_term = String::new();
     let mut filtered_notes = notes.clone();
+    let mut use_semantic_search = false;
 
     // Main event loop
     loop {
@@ -72,9 +79,11 @@ pub fn view_notes() -> io::Result<()> {
             } else {
                 Style::default().fg(Color::DarkGray)
             };
+            let search_type = if use_semantic_search { "Semantic Search" } else { "Regular Search" };
             let search_bar = Paragraph::new(Text::from(format!(
-                "Search: {}",
-                if search_mode { &search_term } else { "Press '/' to search" }
+                "{}: {}",
+                search_type,
+                if search_mode { &search_term } else { "Press '/' to search, 's' to toggle search type" }
             )))
             .block(Block::default().borders(Borders::ALL))
             .style(search_style);
@@ -124,6 +133,8 @@ pub fn view_notes() -> io::Result<()> {
                     Span::raw(" to delete, "),
                     Span::styled("/", Style::default().fg(Color::Yellow)),
                     Span::raw(" to search, "),
+                    Span::styled("s", Style::default().fg(Color::Yellow)),
+                    Span::raw(" to toggle search type, "),
                     Span::styled("q", Style::default().fg(Color::Yellow)),
                     Span::raw(" to quit"),
                 ]),
@@ -135,6 +146,17 @@ pub fn view_notes() -> io::Result<()> {
         if let Event::Key(key) = event::read()? {
             match key.code {
                 KeyCode::Char('q') => break,
+                KeyCode::Char('s') => {
+                    if !search_mode {
+                        use_semantic_search = !use_semantic_search;
+                    } else {
+                        search_term.push('s');
+                        update_filtered_notes(&notes, &search_term, &mut filtered_notes, &semantic_search, use_semantic_search);
+                        if !filtered_notes.is_empty() {
+                            list_state.select(Some(0));
+                        }
+                    }
+                }
                 KeyCode::Char('/') => {
                     search_mode = true;
                     search_term.clear();
@@ -151,7 +173,7 @@ pub fn view_notes() -> io::Result<()> {
                 KeyCode::Backspace => {
                     if search_mode {
                         search_term.pop();
-                        update_filtered_notes(&notes, &search_term, &mut filtered_notes);
+                        update_filtered_notes(&notes, &search_term, &mut filtered_notes, &semantic_search, use_semantic_search);
                         if !filtered_notes.is_empty() {
                             list_state.select(Some(0));
                         }
@@ -160,7 +182,7 @@ pub fn view_notes() -> io::Result<()> {
                 KeyCode::Char(c) => {
                     if search_mode {
                         search_term.push(c);
-                        update_filtered_notes(&notes, &search_term, &mut filtered_notes);
+                        update_filtered_notes(&notes, &search_term, &mut filtered_notes, &semantic_search, use_semantic_search);
                         if !filtered_notes.is_empty() {
                             list_state.select(Some(0));
                         }
@@ -169,7 +191,7 @@ pub fn view_notes() -> io::Result<()> {
                             if let Some(original_index) = notes.iter().position(|n| n == &filtered_notes[selected]) {
                                 delete_note(original_index)?;
                                 notes = read_notes()?;
-                                update_filtered_notes(&notes, &search_term, &mut filtered_notes);
+                                update_filtered_notes(&notes, &search_term, &mut filtered_notes, &semantic_search, use_semantic_search);
                                 if filtered_notes.is_empty() {
                                     list_state.select(None);
                                 } else if selected >= filtered_notes.len() {
@@ -204,9 +226,28 @@ pub fn view_notes() -> io::Result<()> {
     Ok(())
 }
 
-fn update_filtered_notes(notes: &[String], search_term: &str, filtered_notes: &mut Vec<String>) {
+fn update_filtered_notes(
+    notes: &[String],
+    search_term: &str,
+    filtered_notes: &mut Vec<String>,
+    semantic_search: &SemanticSearch,
+    use_semantic_search: bool,
+) {
     if search_term.is_empty() {
         *filtered_notes = notes.to_vec();
+    } else if use_semantic_search {
+        match semantic_search.search(search_term, 10) {
+            Ok(results) => {
+                *filtered_notes = results
+                    .into_iter()
+                    .map(|(text, _)| text)
+                    .collect();
+            }
+            Err(e) => {
+                eprintln!("Semantic search error: {}", e);
+                *filtered_notes = notes.to_vec();
+            }
+        }
     } else {
         *filtered_notes = notes
             .iter()
