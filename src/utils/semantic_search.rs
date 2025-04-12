@@ -29,7 +29,7 @@ struct NoteEmbedding {
 
 pub struct SemanticSearch {
     model: rust_bert::pipelines::sentence_embeddings::SentenceEmbeddingsModel,
-    index: Hnsw<f32, DistL2>,
+    index: std::cell::RefCell<Hnsw<f32, DistL2>>,
     notes: Vec<NoteEmbedding>,
 }
 
@@ -50,9 +50,9 @@ impl SemanticSearch {
         let notes = Self::load_embeddings()?;
         
         // Add existing embeddings to the index
-        let mut index = index;
+        let index = std::cell::RefCell::new(index);
         for (i, note) in notes.iter().enumerate() {
-            index.insert((&note.embedding, i));
+            index.borrow_mut().insert((&note.embedding, i));
         }
 
         Ok(Self { model, index, notes })
@@ -100,7 +100,7 @@ impl SemanticSearch {
         
         // Add to index
         let index = self.notes.len();
-        self.index.insert((&embedding, index));
+        self.index.borrow_mut().insert((&embedding, index));
         
         // Add to notes
         self.notes.push(note);
@@ -114,7 +114,7 @@ impl SemanticSearch {
         let query_embedding = self.model.encode(&[query])
             .map_err(SearchError::Model)?[0].to_vec();
         
-        let neighbors = self.index.search(&query_embedding, k, EF_CONSTRUCTION);
+        let neighbors = self.index.borrow().search(&query_embedding, k, EF_CONSTRUCTION);
         
         let results: Vec<(String, f32)> = neighbors
             .into_iter()
