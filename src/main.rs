@@ -3,6 +3,7 @@ mod utils;
 use clap::{Parser, Subcommand};
 use utils::file_writing::write_to_file;
 use utils::viewer::view_notes;
+use utils::semantic_search::SemanticSearch;
 
 #[derive(Parser)]
 #[command(name = "pad", about = "A notepad for quick thoughts")]
@@ -36,9 +37,18 @@ enum Commands {
     },
     /// View all notes
     View,
+    /// Search notes semantically
+    Search {
+        /// The search query
+        query: String,
+        
+        /// Number of results to return
+        #[arg(short = 'k', long = "k-results", default_value = "5")]
+        k: usize,
+    },
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
@@ -54,10 +64,25 @@ fn main() {
             } else {
                 "general"
             };
-            write_to_file(Some(category), &text).expect("Failed to write to file");
+            write_to_file(Some(category), &text)?;
+            
+            // Add to semantic search index
+            let mut semantic_search = SemanticSearch::new()?;
+            semantic_search.add_note(&text)?;
         }
         Commands::View => {
-            view_notes().expect("Failed to view notes");
+            view_notes()?;
+        }
+        Commands::Search { query, k } => {
+            let semantic_search = SemanticSearch::new()?;
+            let results = semantic_search.search(&query, k)?;
+            
+            println!("\nSemantic search results for: '{}'", query);
+            println!("----------------------------------------");
+            for (i, (text, distance)) in results.iter().enumerate() {
+                println!("{}. {} (distance: {:.4})", i + 1, text, distance);
+            }
         }
     }
+    Ok(())
 }
