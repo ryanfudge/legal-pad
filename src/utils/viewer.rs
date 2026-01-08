@@ -42,7 +42,7 @@ pub fn view_notes() -> io::Result<()> {
     }
 
     // Initialize semantic search
-    let semantic_search = SemanticSearch::new().map_err(|e| {
+    let mut semantic_search = SemanticSearch::new().map_err(|e| {
         io::Error::new(io::ErrorKind::Other, format!("Failed to initialize semantic search: {}", e))
     })?;
 
@@ -152,7 +152,9 @@ pub fn view_notes() -> io::Result<()> {
                     } else {
                         search_term.push('s');
                         update_filtered_notes(&notes, &search_term, &mut filtered_notes, &semantic_search, use_semantic_search);
-                        if !filtered_notes.is_empty() {
+                        if filtered_notes.is_empty() {
+                            list_state.select(None);
+                        } else {
                             list_state.select(Some(0));
                         }
                     }
@@ -170,11 +172,13 @@ pub fn view_notes() -> io::Result<()> {
                         list_state.select(Some(0));
                     }
                 }
-                KeyCode::Backspace => {
+                KeyCode::Backspace | KeyCode::Delete => {
                     if search_mode {
                         search_term.pop();
                         update_filtered_notes(&notes, &search_term, &mut filtered_notes, &semantic_search, use_semantic_search);
-                        if !filtered_notes.is_empty() {
+                        if filtered_notes.is_empty() {
+                            list_state.select(None);
+                        } else {
                             list_state.select(Some(0));
                         }
                     }
@@ -183,13 +187,26 @@ pub fn view_notes() -> io::Result<()> {
                     if search_mode {
                         search_term.push(c);
                         update_filtered_notes(&notes, &search_term, &mut filtered_notes, &semantic_search, use_semantic_search);
-                        if !filtered_notes.is_empty() {
+                        if filtered_notes.is_empty() {
+                            list_state.select(None);
+                        } else {
                             list_state.select(Some(0));
                         }
                     } else if c == 'd' {
                         if let Some(selected) = list_state.selected() {
-                            if let Some(original_index) = notes.iter().position(|n| n == &filtered_notes[selected]) {
+                            let selected_note = &filtered_notes[selected];
+                            let selected_content = extract_note_content(selected_note).to_string();
+                            let original_index = notes
+                                .iter()
+                                .position(|n| n == selected_note)
+                                .or_else(|| {
+                                    notes
+                                        .iter()
+                                        .position(|n| extract_note_content(n) == selected_content)
+                                });
+                            if let Some(original_index) = original_index {
                                 delete_note(original_index)?;
+                                let _ = semantic_search.remove_note_text(&selected_content);
                                 notes = read_notes()?;
                                 update_filtered_notes(&notes, &search_term, &mut filtered_notes, &semantic_search, use_semantic_search);
                                 if filtered_notes.is_empty() {
@@ -260,6 +277,17 @@ fn update_filtered_notes(
             })
             .cloned()
             .collect();
+    }
+}
+
+fn extract_note_content(note: &str) -> &str {
+    let mut parts = note.splitn(3, ']');
+    let _ = parts.next();
+    let _ = parts.next();
+    if let Some(content) = parts.next() {
+        content.trim()
+    } else {
+        note.trim()
     }
 }
 

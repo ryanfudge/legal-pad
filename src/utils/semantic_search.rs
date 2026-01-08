@@ -2,7 +2,7 @@ use rust_bert::pipelines::sentence_embeddings::{
     SentenceEmbeddingsBuilder, SentenceEmbeddingsModelType,
 };
 use hnsw_rs::prelude::*;
-use hnsw_rs::dist::DistL2;
+use hnsw_rs::dist::DistCosine;
 use std::path::PathBuf;
 use dirs::home_dir;
 use serde::{Serialize, Deserialize};
@@ -29,7 +29,7 @@ struct NoteEmbedding {
 
 pub struct SemanticSearch {
     model: rust_bert::pipelines::sentence_embeddings::SentenceEmbeddingsModel,
-    index: std::cell::RefCell<Hnsw<f32, DistL2>>,
+    index: std::cell::RefCell<Hnsw<f32, DistCosine>>,
     notes: Vec<NoteEmbedding>,
 }
 
@@ -39,12 +39,12 @@ impl SemanticSearch {
             .create_model()
             .map_err(SearchError::Model)?;
 
-        let index = Hnsw::<f32, DistL2>::new(
+        let index = Hnsw::<f32, DistCosine>::new(
             16,   // max number of connections per layer
             200,  // max number of elements
             16,   // max layer
             EF_CONSTRUCTION,  // ef construction
-            DistL2{},
+            DistCosine{},
         );
 
         let notes = Self::load_embeddings()?;
@@ -74,8 +74,12 @@ impl SemanticSearch {
         }
 
         let content = fs::read_to_string(path)?;
-        let notes: Vec<NoteEmbedding> = serde_json::from_str(&content)
+        let mut notes: Vec<NoteEmbedding> = serde_json::from_str(&content)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        for note in &mut notes {
+            let embedding = std::mem::take(&mut note.embedding);
+            note.embedding = normalize_embedding(embedding);
+        }
         Ok(notes)
     }
 
@@ -92,6 +96,7 @@ impl SemanticSearch {
     pub fn add_note(&mut self, text: &str) -> Result<(), SearchError> {
         let embedding = self.model.encode(&[text])
             .map_err(SearchError::Model)?[0].to_vec();
+        let embedding = normalize_embedding(embedding);
         
         let note = NoteEmbedding {
             text: text.to_string(),
@@ -113,6 +118,7 @@ impl SemanticSearch {
     pub fn search(&self, query: &str, k: usize) -> Result<Vec<(String, f32)>, SearchError> {
         let query_embedding = self.model.encode(&[query])
             .map_err(SearchError::Model)?[0].to_vec();
+        let query_embedding = normalize_embedding(query_embedding);
         
         let neighbors = self.index.borrow().search(&query_embedding, k, EF_CONSTRUCTION);
         
@@ -123,4 +129,41 @@ impl SemanticSearch {
             
         Ok(results)
     }
+
+    pub fn remove_note_text(&mut self, text: &str) -> Result<(), SearchError> {
+        let original_len = self.notes.len();
+        self.notes.retain(|note| note.text != text);
+        if self.notes.len() == original_len {
+            return Ok(());
+        }
+
+        self.rebuild_index();
+        self.save_embeddings()?;
+        Ok(())
+    }
+
+    fn rebuild_index(&mut self) {
+        let max_elements = self.notes.len().max(200);
+        let mut index = Hnsw::<f32, DistCosine>::new(
+            16,
+            max_elements,
+            16,
+            EF_CONSTRUCTION,
+            DistCosine{},
+        );
+        for (i, note) in self.notes.iter().enumerate() {
+            index.insert((&note.embedding, i));
+        }
+        self.index = std::cell::RefCell::new(index);
+    }
+}
+
+fn normalize_embedding(mut embedding: Vec<f32>) -> Vec<f32> {
+    let norm = embedding.iter().map(|v| v * v).sum::<f32>().sqrt();
+    if norm > 0.0 {
+        for value in &mut embedding {
+            *value /= norm;
+        }
+    }
+    embedding
 }
