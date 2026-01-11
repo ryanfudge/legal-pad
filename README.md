@@ -10,6 +10,47 @@ etc.), causing my notes to be spread across a range of platforms. Because of thi
 these notes; this is why I need a consolidated platform. Becuase I've been utilizing the command line so often lately, I 
 decided to make a CLI app written in Rust for performance.  
 
+## System Design
+
+```mermaid
+flowchart TD
+    User([User]) --> CLI[pad CLI binary]
+    CLI --> Clap[clap::Parser + Subcommand]
+    Clap -->|Add| AddCmd[Commands::Add]
+    Clap -->|View| ViewCmd[Commands::View]
+    Clap -->|Search| SearchCmd[Commands::Search]
+
+    subgraph Core["Core modules (src/utils)"]
+        FileWrite["file_writing.rs<br/>write_to_file()"]
+        Viewer["viewer.rs<br/>view_notes()"]
+        SemSearch["semantic_search.rs<br/>SemanticSearch"]
+    end
+
+    AddCmd --> FileWrite
+    FileWrite --> NotesDir[~/notes/]
+    NotesDir --> NotesFile[notes.txt]
+
+    AddCmd --> SemSearch
+    SemSearch -->|encode text| Bert[rust-bert\nAllMiniLmL6V2]
+    SemSearch -->|store vectors| EmbeddingsFile[embeddings.json]
+    SemSearch -->|index| HNSW[hnsw_rs\ncosine distance]
+
+    ViewCmd --> Viewer
+    Viewer --> Terminal[crossterm + ratatui TUI]
+    Viewer --> NotesFile
+    Viewer -->|regular filter| Filter[category/content filter]
+    Viewer -->|semantic search toggle| SemSearch
+    Viewer -->|delete note| Delete["delete_note()"]
+    Delete --> NotesFile
+    Delete -->|remove_note_text + rebuild| HNSW
+
+    SearchCmd --> SemSearch
+    SemSearch -->|nearest neighbors| HNSW
+    SearchCmd --> Output[CLI print results]
+
+    EmbeddingsFile --> SemSearch
+```
+
 ## Features
 
 - Add notes with different categories (read, watch, listen, idea, general)
